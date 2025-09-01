@@ -40,3 +40,8 @@ sudo usermod -aG docker $USER
 echo "Docker Engine installation complete."
 echo "⚠️ Please log out and log back in (or run: newgrp docker) for the group changes to take effect."
 echo "✅ You can verify installation by running: docker run hello-world"
+
+echo "Installing UV package manager"
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.local/bin/env
+echo "✅ Successfully Installed uv You can verify installation by running: uv --version"
