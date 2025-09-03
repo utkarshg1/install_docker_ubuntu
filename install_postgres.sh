@@ -59,7 +59,7 @@ echo "Checking PostgreSQL service status..."
 sudo systemctl status postgresql.service --no-pager
 
 # Run all SQL commands using a single 'psql' here document
-echo "Executing SQL commands to create user, database, and permissions..."
+echo "Executing SQL commands to create user, and set permissions..."
 sudo -u postgres psql << EOF
 ALTER USER postgres WITH PASSWORD '$PG_ROOT_PASS';
 
@@ -73,24 +73,22 @@ END
 
 DO \$do\$
 BEGIN
-   IF NOT EXISTS (SELECT FROM pg_database WHERE datname = '$DB_NAME') THEN
-      CREATE DATABASE $DB_NAME;
-   END IF;
-END
-\$do\$;
-
-GRANT ALL PRIVILEGES ON DATABASE "$DB_NAME" TO "$DB_USER";
-
-DO \$do\$
-BEGIN
    IF NOT EXISTS (SELECT FROM pg_catalog.pg_user WHERE usename = 'ubuntu') THEN
       CREATE ROLE ubuntu WITH LOGIN;
    END IF;
 END
 \$do\$;
-
-GRANT ALL PRIVILEGES ON DATABASE "$DB_NAME" TO "ubuntu";
 EOF
+
+# Create the database separately, as it cannot be done inside a DO block
+if ! sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -qw "$DB_NAME"; then
+    echo "Creating database '$DB_NAME'..."
+    sudo -u postgres psql -c "CREATE DATABASE $DB_NAME;"
+fi
+
+# Grant all privileges to the newly created user and the ubuntu user
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE \"$DB_NAME\" TO \"$DB_USER\";"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE \"$DB_NAME\" TO \"ubuntu\";"
 
 echo "PostgreSQL setup complete!"
 echo "Database '$DB_NAME' is ready for use with user '$DB_USER'."
