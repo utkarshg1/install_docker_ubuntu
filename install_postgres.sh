@@ -58,24 +58,39 @@ sudo systemctl start postgresql.service
 echo "Checking PostgreSQL service status..."
 sudo systemctl status postgresql.service --no-pager
 
-# Change the default postgres user password
-echo "Setting a new password for the 'postgres' user..."
-sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD '$PG_ROOT_PASS';"
+# Run all SQL commands using a single 'psql' here document
+echo "Executing SQL commands to create user, database, and permissions..."
+sudo -u postgres psql << EOF
+ALTER USER postgres WITH PASSWORD '$PG_ROOT_PASS';
 
-# Create a new user and a new database for your project
-echo "Creating a new database user '$DB_USER', database '$DB_NAME', and local user role 'ubuntu'..."
+DO \$do\$
+BEGIN
+   IF NOT EXISTS (SELECT FROM pg_catalog.pg_user WHERE usename = '$DB_USER') THEN
+      CREATE USER $DB_USER WITH PASSWORD '$DB_PASS';
+   END IF;
+END
+\$do\$;
 
-# Create the database user if it does not already exist
-sudo -u postgres psql -c "DO \$do\$ BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_user WHERE usename = '$DB_USER') THEN CREATE USER $DB_USER WITH PASSWORD '$DB_PASS'; END IF; END \$do\$;"
+DO \$do\$
+BEGIN
+   IF NOT EXISTS (SELECT FROM pg_database WHERE datname = '$DB_NAME') THEN
+      CREATE DATABASE $DB_NAME;
+   END IF;
+END
+\$do\$;
 
-# Create the database if it does not already exist and grant privileges
-sudo -u postgres psql -c "DO \$do\$ BEGIN IF NOT EXISTS (SELECT FROM pg_database WHERE datname = '$DB_NAME') THEN CREATE DATABASE $DB_NAME; END IF; END \$do\$;"
-sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;"
+GRANT ALL PRIVILEGES ON DATABASE "$DB_NAME" TO "$DB_USER";
 
-# Create a PostgreSQL role for the current system user ('ubuntu') if it doesn't exist
-# This allows you to run 'psql' without specifying a user.
-sudo -u postgres psql -c "DO \$do\$ BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_user WHERE usename = 'ubuntu') THEN CREATE ROLE ubuntu WITH LOGIN; END IF; END \$do\$;"
-sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO ubuntu;"
+DO \$do\$
+BEGIN
+   IF NOT EXISTS (SELECT FROM pg_catalog.pg_user WHERE usename = 'ubuntu') THEN
+      CREATE ROLE ubuntu WITH LOGIN;
+   END IF;
+END
+\$do\$;
+
+GRANT ALL PRIVILEGES ON DATABASE "$DB_NAME" TO "ubuntu";
+EOF
 
 echo "PostgreSQL setup complete!"
 echo "Database '$DB_NAME' is ready for use with user '$DB_USER'."
